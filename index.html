@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>観戦ログ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#10140d; --surface:#1a2014; --surface2:#222a1b; --line:#2e3826;
+    --text:#f5f3ea; --muted:#8d9580; --gold:#f0b429; --red:#e5484d; --pitch:#5fbf3f;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; overscroll-behavior:none;}
+  body{display:flex; justify-content:center;}
+  .app{width:100%; max-width:480px; min-height:100vh; display:flex; flex-direction:column;}
+  .screen{display:none; flex-direction:column; min-height:100vh;}
+  .screen.show{display:flex;}
+  h2.scr-title{font-family:'Oswald',sans-serif; font-size:20px; font-weight:600; padding:20px 18px 4px; margin:0;}
+  .scr-sub{color:var(--muted); font-size:12px; padding:0 18px 14px;}
+
+  /* ---- フォーム共通 ---- */
+  .field{padding:0 18px 16px;}
+  .field label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px;}
+  .field input[type=text], .field input[type=date], .field input[type=number], .field select{
+    width:100%; background:var(--surface); border:1px solid var(--line); border-radius:10px;
+    color:var(--text); font-size:15px; padding:11px 12px; font-family:'Inter',sans-serif;
+  }
+  .seg{display:flex; gap:8px;}
+  .seg button{
+    flex:1; padding:11px 0; border-radius:10px; border:1px solid var(--line);
+    background:var(--surface); color:var(--text); font-size:13px; font-weight:600;
+  }
+  .seg button.active{background:var(--pitch); color:#10140d; border-color:var(--pitch);}
+
+  .stage-row{display:flex; gap:8px; align-items:center; margin-bottom:8px;}
+  .stage-row input[type=text]{flex:1.3;}
+  .stage-row input[type=number]{flex:1; text-align:center;}
+  .stage-row .rm{background:none; border:none; color:var(--muted); font-size:18px; padding:0 4px;}
+  .add-stage{
+    width:100%; padding:11px 0; border-radius:10px; border:1px dashed var(--line);
+    background:transparent; color:var(--muted); font-size:13px; margin-top:2px;
+  }
+
+  .primary-btn{
+    width:calc(100% - 36px); margin:6px 18px 14px; padding:15px 0; border-radius:12px; border:none;
+    background:var(--pitch); color:#10140d; font-weight:700; font-size:16px;
+  }
+  .secondary-btn{
+    width:calc(100% - 36px); margin:0 18px 24px; padding:13px 0; border-radius:12px; border:1px solid var(--line);
+    background:var(--surface); color:var(--text); font-weight:600; font-size:14px;
+  }
+
+  /* ---- スコアボード ---- */
+  .scoreboard{background:linear-gradient(180deg,#161c0f,#10140d); border-bottom:1px solid var(--line); padding:16px 20px 20px; text-align:center;}
+  .half-label{font-size:12px; font-weight:600; letter-spacing:0.1em; color:var(--pitch); text-transform:uppercase; margin-bottom:4px;}
+  .match-meta{font-size:11px; color:var(--muted); margin-bottom:10px;}
+  .timer{font-family:'Oswald',sans-serif; font-weight:600; font-size:58px; letter-spacing:0.03em; font-variant-numeric:tabular-nums; line-height:1; text-shadow:0 0 18px rgba(95,191,63,0.25);}
+  .timer .stoppage{font-size:26px; color:var(--gold); margin-left:6px;}
+  .timer-controls{display:flex; gap:8px; justify-content:center; margin-top:12px; flex-wrap:wrap;}
+  .ctrl-btn{font-weight:600; font-size:12.5px; padding:9px 14px; border-radius:999px; border:1px solid var(--line); background:var(--surface); color:var(--text);}
+  .ctrl-btn.primary{background:var(--pitch); color:#10140d; border-color:var(--pitch);}
+  .ctrl-btn:disabled{opacity:0.35;}
+
+  .events{padding:16px 16px 4px;}
+  .row{display:flex; gap:10px; margin-bottom:10px;}
+  .ev-btn{flex:1; border:none; border-radius:14px; font-weight:700; font-size:16px; padding:18px 0; display:flex; flex-direction:column; align-items:center; gap:3px; color:#10140d;}
+  .ev-btn:active{transform:scale(0.96);}
+  .ev-btn .sub{font-weight:500; font-size:10.5px; opacity:0.75;}
+  .ev-goal{background:var(--gold);}
+  .ev-conceded{background:var(--red); color:#fff;}
+  .ev-shot{background:var(--surface2); color:var(--text); border:1px solid var(--pitch); padding:20px 0;}
+  .ev-sub{background:var(--surface2); color:var(--text); border:1px solid var(--line); font-size:13.5px; padding:13px 0;}
+
+  .log-section{flex:1; padding:4px 16px 0; display:flex; flex-direction:column; min-height:100px;}
+  .log-title{font-size:12px; font-weight:600; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; margin:10px 0 8px 2px;}
+  .log-list{flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding-bottom:8px;}
+  .log-item{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:9px 12px;}
+  .log-item .top{display:flex; align-items:center; gap:10px; font-size:14px;}
+  .log-item .min{font-family:'Oswald',sans-serif; font-weight:600; font-variant-numeric:tabular-nums; width:60px; color:var(--pitch); flex-shrink:0;}
+  .log-item .dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+  .dot-goal{background:var(--gold);} .dot-conceded{background:var(--red);} .dot-shot{background:var(--pitch);} .dot-sub{background:var(--muted);}
+  .log-item .label{flex:1; color:var(--text);}
+  .log-item .memo-text{color:var(--muted); font-size:12px; margin-top:2px;}
+  .log-item button.memo-toggle{background:none; border:none; color:var(--muted); font-size:12px;}
+  .log-item button.rm-log{background:none; border:none; color:var(--muted); font-size:12px;}
+  .log-item textarea{width:100%; margin-top:8px; background:var(--surface2); border:1px solid var(--line); border-radius:8px; color:var(--text); font-size:13px; padding:8px; min-height:50px; font-family:'Inter',sans-serif;}
+  .empty{color:var(--muted); font-size:13px; text-align:center; padding:24px 0;}
+
+  .footer{padding:12px 16px 20px; border-top:1px solid var(--line); background:var(--bg); display:flex; gap:8px;}
+  .footer button{flex:1; padding:14px 0; border-radius:12px; border:1px solid var(--line); background:var(--surface); color:var(--text); font-weight:600; font-size:13.5px;}
+  .footer button.end{background:var(--red); color:#fff; border-color:var(--red);}
+
+  /* ---- PK ---- */
+  .pk-side{padding:0 18px 18px;}
+  .pk-side h3{font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin:0 0 10px;}
+  .pk-kicks{display:flex; gap:8px; flex-wrap:wrap;}
+  .pk-kick{
+    width:46px; height:46px; border-radius:50%; border:1px solid var(--line); background:var(--surface);
+    color:var(--text); font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center;
+  }
+  .pk-kick.goal{background:var(--pitch); color:#10140d; border-color:var(--pitch);}
+  .pk-kick.miss{background:var(--red); color:#fff; border-color:var(--red);}
+  .pk-add{width:46px; height:46px; border-radius:50%; border:1px dashed var(--line); background:transparent; color:var(--muted); font-size:18px;}
+  .pk-score{padding:0 18px 10px; font-family:'Oswald',sans-serif; font-size:32px; text-align:center;}
+  .pk-score .vs{color:var(--muted); font-size:18px; margin:0 12px;}
+
+  /* ---- メモ画面 ---- */
+  .memo-body{flex:1; padding:16px 18px; overflow-y:auto;}
+  .memo-body textarea{width:100%; min-height:120px; background:var(--surface); border:1px solid var(--line); border-radius:10px; color:var(--text); font-family:'Inter',sans-serif; font-size:14px; padding:12px; resize:vertical;}
+
+  /* ---- ゴールメモモーダル ---- */
+  .modal-bg{position:fixed; inset:0; background:rgba(0,0,0,0.55); display:none; align-items:flex-end; justify-content:center; z-index:20;}
+  .modal-bg.show{display:flex;}
+  .modal{background:var(--surface); width:100%; max-width:480px; border-radius:18px 18px 0 0; padding:20px 18px 26px;}
+  .modal h4{margin:0 0 12px; font-size:15px; font-family:'Oswald',sans-serif;}
+  .modal input{width:100%; background:var(--surface2); border:1px solid var(--line); border-radius:10px; color:var(--text); font-size:15px; padding:11px 12px; margin-bottom:12px;}
+  .modal .quick{display:flex; gap:8px; margin-bottom:12px;}
+  .modal .quick button{flex:1; padding:9px 0; border-radius:8px; border:1px solid var(--line); background:var(--surface2); color:var(--text); font-size:13px;}
+  .modal .actions{display:flex; gap:8px;}
+  .modal .actions button{flex:1; padding:12px 0; border-radius:10px; border:none; font-weight:700; font-size:14px;}
+  .modal .save{background:var(--pitch); color:#10140d;}
+  .modal .skip{background:var(--surface2); color:var(--muted); border:1px solid var(--line) !important;}
+
+  pre.json-view{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:12px; font-size:11px; color:var(--text); white-space:pre-wrap; max-height:300px; overflow-y:auto;}
+
+  /* ---- 履歴 ---- */
+  .history-item{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;}
+  .history-item .meta .opp{font-weight:700; font-size:15px; margin-bottom:2px;}
+  .history-item .meta .sub{font-size:11px; color:var(--muted);}
+  .history-item .score{font-family:'Oswald',sans-serif; font-size:20px; color:var(--pitch); margin-left:10px;}
+  .history-item .del{background:none; border:none; color:var(--muted); font-size:12px; margin-left:12px;}
+  .history-empty{color:var(--muted); font-size:13px; text-align:center; padding:30px 0;}
+
+  /* ---- リザルト ---- */
+  .result-meta{font-size:12px; color:var(--muted); margin-bottom:16px;}
+  .stat-grid{display:flex; gap:10px; margin-bottom:16px;}
+  .stat-box{flex:1; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:12px 6px; text-align:center;}
+  .stat-box .num{font-family:'Oswald',sans-serif; font-size:26px; font-weight:600;}
+  .stat-box .lbl{font-size:10.5px; color:var(--muted); margin-top:2px;}
+  .shot-grid{display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;}
+  .shot-box{flex:1 1 21%; background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:10px 4px; text-align:center;}
+  .shot-box .num{font-family:'Oswald',sans-serif; font-size:18px; font-weight:600;}
+  .shot-box .lbl{font-size:9.5px; color:var(--muted); margin-top:2px;}
+  .result-section-title{font-size:12px; font-weight:600; color:var(--muted); letter-spacing:0.06em; text-transform:uppercase; margin:14px 0 8px 2px;}
+  .result-timeline{display:flex; flex-direction:column; gap:6px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== 1. 事前設定 ===== -->
+  <div class="screen show" id="screenSetup">
+    <h2 class="scr-title">試合情報</h2>
+    <div class="scr-sub">試合前に入力してください</div>
+
+    <div class="field"><label>日付</label><input type="date" id="inpDate"></div>
+    <div class="field"><label>対戦相手</label><input type="text" id="inpOpponent" placeholder="例:〇〇FC"></div>
+    <div class="field">
+      <label>場所(コンディション)</label>
+      <div class="seg" id="surfaceSeg">
+        <button data-v="土" class="active">土</button>
+        <button data-v="人工芝">人工芝</button>
+        <button data-v="天然芝">天然芝</button>
+      </div>
+    </div>
+    <div class="field"><label>会場名</label><input type="text" id="inpVenueName" placeholder="例:〇〇河川敷グラウンド"></div>
+    <div class="field"><label>Googleマップリンク</label><input type="text" id="inpMapsLink" placeholder="https://maps.app.goo.gl/..."></div>
+
+    <div class="field">
+      <label>フォーマット</label>
+      <select id="formatSelect">
+        <option value="single" selected>1本マッチ</option>
+        <option value="half">前後半</option>
+        <option value="period3">ピリオド制(3P)</option>
+        <option value="junior">ジュニア(前後半・短め)</option>
+        <option value="custom">カスタム</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>ステージ構成(名称・分数を編集できます)</label>
+      <div id="stageEditor"></div>
+      <button class="add-stage" id="addStageBtn">+ ステージを追加(延長など)</button>
+    </div>
+
+    <div style="flex:1;"></div>
+    <button class="secondary-btn" id="viewHistoryBtn">📋 過去の試合を見る</button>
+    <button class="primary-btn" id="toMatchBtn">試合開始へ進む</button>
+  </div>
+
+  <!-- ===== 2. 試合中 ===== -->
+  <div class="screen" id="screenMatch">
+    <div class="scoreboard">
+      <div class="half-label" id="stageLabel">―</div>
+      <div class="match-meta" id="matchMeta"></div>
+      <div class="timer" id="timerDisplay">00:00</div>
+      <div class="timer-controls">
+        <button class="ctrl-btn primary" id="startStopBtn">▶ 開始</button>
+        <button class="ctrl-btn" id="nextStageBtn">次のステージへ</button>
+      </div>
+    </div>
+
+    <div class="events">
+      <div class="row">
+        <button class="ev-btn ev-goal" data-type="得点">⚽ 得点<span class="sub">味方</span></button>
+        <button class="ev-btn ev-conceded" data-type="失点">🥅 失点<span class="sub">相手</span></button>
+      </div>
+      <div class="row">
+        <button class="ev-btn ev-shot" data-type="シュート">🎯 シュート<span class="sub">息子</span></button>
+      </div>
+      <div class="row">
+        <button class="ev-btn ev-sub" data-type="交代IN">交代 IN</button>
+        <button class="ev-btn ev-sub" data-type="交代OUT">交代 OUT</button>
+      </div>
+    </div>
+
+    <div class="log-section">
+      <div class="log-title">ログ</div>
+      <div class="log-list" id="logList">
+        <div class="empty" id="emptyMsg">試合を開始するとここにログが表示されます</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <button id="toPKBtn">PK戦へ</button>
+      <button class="end" id="toEndBtn">試合終了</button>
+    </div>
+  </div>
+
+  <!-- ===== 3. PK戦 ===== -->
+  <div class="screen" id="screenPK">
+    <h2 class="scr-title">PK戦</h2>
+    <div class="field">
+      <label>1人あたりのキック数</label>
+      <div class="seg" id="pkPresetSeg">
+        <button data-v="3" class="active">3人制</button>
+        <button data-v="5">5人制</button>
+      </div>
+    </div>
+
+    <div class="pk-score"><span id="pkScoreA">0</span><span class="vs">-</span><span id="pkScoreB">0</span></div>
+
+    <div class="pk-side">
+      <h3>味方</h3>
+      <div class="pk-kicks" id="pkKicksA"></div>
+    </div>
+    <div class="pk-side">
+      <h3>相手</h3>
+      <div class="pk-kicks" id="pkKicksB"></div>
+    </div>
+
+    <div style="flex:1;"></div>
+    <button class="secondary-btn" id="pkBackBtn">試合に戻る</button>
+    <button class="primary-btn" id="pkDoneBtn">試合終了へ</button>
+  </div>
+
+  <!-- ===== 4. 試合後メモ ===== -->
+  <div class="screen" id="screenEnd">
+    <h2 class="scr-title">試合後メモ</h2>
+    <div class="memo-body">
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">全体メモ(スコア・印象など)</label>
+      <textarea id="endMemo" placeholder="例:2-1で勝利。後半運動量が落ちた印象。"></textarea>
+      <div style="height:18px;"></div>
+      <div id="jsonPreviewWrap" style="display:none;">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">JSON出力</label>
+        <pre class="json-view" id="jsonView"></pre>
+      </div>
+    </div>
+    <button class="secondary-btn" id="endBackBtn">試合ログに戻る</button>
+    <button class="secondary-btn" id="exportBtn">JSON書き出し(コピー)</button>
+    <button class="primary-btn" id="saveResultBtn">保存してリザルトを見る</button>
+  </div>
+
+  <!-- ===== 5. リザルト確認 ===== -->
+  <div class="screen" id="screenResult">
+    <h2 class="scr-title">試合結果</h2>
+    <div class="memo-body" id="resultBody"></div>
+    <button class="secondary-btn" id="resultToHistoryBtn">履歴一覧へ</button>
+    <button class="primary-btn" id="resultNewMatchBtn">新しい試合へ</button>
+  </div>
+
+  <!-- ===== 6. 履歴一覧 ===== -->
+  <div class="screen" id="screenHistory">
+    <h2 class="scr-title">試合履歴</h2>
+    <div class="memo-body" id="historyList"></div>
+    <button class="secondary-btn" id="historyBackBtn">セットアップに戻る</button>
+  </div>
+
+</div>
+
+<!-- 得点メモモーダル -->
+<div class="modal-bg" id="goalModalBg">
+  <div class="modal">
+    <h4>⚽ 誰が決めた?</h4>
+    <input type="text" id="goalScorerInput" placeholder="選手名を入力(例:息子)">
+    <div class="quick">
+      <button id="quickSon">息子</button>
+      <button id="quickTeammate">チームメイト</button>
+    </div>
+    <div class="actions">
+      <button class="skip" id="goalSkipBtn">スキップ</button>
+      <button class="save" id="goalSaveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 息子シュート結果モーダル -->
+<div class="modal-bg" id="shotModalBg">
+  <div class="modal">
+    <h4>🎯 シュートの結果</h4>
+    <div class="quick" style="flex-wrap:wrap;">
+      <button class="shot-result" data-r="ゴール" style="flex:1 1 45%;">⚽ ゴール</button>
+      <button class="shot-result" data-r="枠外" style="flex:1 1 45%;">枠外</button>
+      <button class="shot-result" data-r="GKセーブ" style="flex:1 1 45%;">GKセーブ</button>
+      <button class="shot-result" data-r="DFブロック" style="flex:1 1 45%;">DFブロック</button>
+    </div>
+    <div class="actions">
+      <button class="skip" id="shotCancelBtn">取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================== 状態 ===================== */
+const PRESETS = {
+  single:  [{name:'試合', min:30}],
+  half:    [{name:'前半', min:30}, {name:'後半', min:30}],
+  period3: [{name:'1P', min:15}, {name:'2P', min:15}, {name:'3P', min:15}],
+  junior:  [{name:'前半', min:12}, {name:'後半', min:12}],
+  custom:  [{name:'試合', min:30}]
+};
+
+let state = {
+  matchId: null,
+  date:'', opponent:'', surface:'土', venueName:'', mapsLink:'',
+  stages: JSON.parse(JSON.stringify(PRESETS.single)),
+  currentStageIndex: 0,
+  elapsedSec: 0,
+  running: false,
+  timerInterval: null,
+  log: [],
+  pk: { perSide:3, kicksA:[], kicksB:[] },
+  endMemo: ''
+};
+let pendingGoalLogId = null;
+const STORAGE_KEY = 'kansenMatches';
+
+function loadMatches(){
+  try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+  catch(e){ return []; }
+}
+function persistMatches(arr){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+}
+function buildMatchRecord(){
+  return {
+    id: state.matchId,
+    date: state.date,
+    opponent: state.opponent,
+    surface: state.surface,
+    venueName: state.venueName,
+    mapsLink: state.mapsLink,
+    stages: state.stages,
+    log: state.log,
+    pk: state.pk,
+    endMemo: state.endMemo,
+    savedAt: new Date().toISOString()
+  };
+}
+function saveCurrentMatch(){
+  if(!state.matchId) state.matchId = 'm_' + Date.now();
+  const record = buildMatchRecord();
+  const list = loadMatches();
+  const idx = list.findIndex(m => m.id === record.id);
+  if(idx >= 0) list[idx] = record; else list.unshift(record);
+  persistMatches(list);
+  return record;
+}
+function computeStats(record){
+  const teamGoals = record.log.filter(e => e.type === '得点').length
+    + record.log.filter(e => e.type === 'シュート' && e.result === 'ゴール').length;
+  const conceded = record.log.filter(e => e.type === '失点').length;
+  const shotTally = {ゴール:0, 枠外:0, GKセーブ:0, DFブロック:0};
+  record.log.filter(e => e.type === 'シュート').forEach(e => {
+    if(shotTally[e.result] !== undefined) shotTally[e.result]++;
+  });
+  let pkText = '';
+  if(record.pk && (record.pk.kicksA.some(v=>v!==null) || record.pk.kicksB.some(v=>v!==null))){
+    const a = record.pk.kicksA.filter(v=>v==='goal').length;
+    const b = record.pk.kicksB.filter(v=>v==='goal').length;
+    pkText = `PK ${a} - ${b}`;
+  }
+  return { teamGoals, conceded, shotTally, pkText };
+}
+
+/* ===================== リザルト画面 ===================== */
+let currentResultRecord = null;
+
+function renderResult(record){
+  currentResultRecord = record;
+  const stats = computeStats(record);
+  const sorted = [...record.log].reverse(); // 時系列順
+  const timelineHtml = sorted.length === 0 ? '<div class="empty">ログがありません</div>' :
+    sorted.map(e => {
+      const scorerText = e.type === '得点' && e.scorer ? `(${e.scorer})` : '';
+      const shotText = e.type === 'シュート' ? `(息子・${e.result})` : '';
+      const memoText = e.memo ? `<div class="memo-text">📝 ${e.memo}</div>` : '';
+      return `<div class="log-item">
+        <div class="top">
+          <span class="min">${e.minLabel}'</span>
+          <span class="dot ${dotClass(e.type, e.result)}"></span>
+          <span class="label">${e.type} ${scorerText}${shotText}<span style="color:var(--muted); font-size:11px;"> / ${e.stageName}</span></span>
+        </div>
+        ${memoText}
+      </div>`;
+    }).join('');
+
+  document.getElementById('resultBody').innerHTML = `
+    <div id="resultMetaView">
+      <div class="result-meta">${record.date || ''} vs ${record.opponent || '(相手未入力)'} ・ ${record.surface}${record.venueName ? ' ・ ' + record.venueName : ''}
+        ${record.mapsLink ? `<br><a href="${record.mapsLink}" target="_blank" style="color:var(--pitch);">📍 地図を開く</a>` : ''}
+      </div>
+      <button class="secondary-btn" id="editMetaBtn" style="margin:0 0 16px;">✏️ 日付・対戦相手・場所を編集</button>
+    </div>
+    <div id="resultMetaEdit" style="display:none;">
+      <div class="field"><label>日付</label><input type="date" id="editDate"></div>
+      <div class="field"><label>対戦相手</label><input type="text" id="editOpponent" placeholder="例:〇〇FC"></div>
+      <div class="field">
+        <label>場所(コンディション)</label>
+        <select id="editSurface"><option value="土">土</option><option value="人工芝">人工芝</option><option value="天然芝">天然芝</option></select>
+      </div>
+      <div class="field"><label>会場名</label><input type="text" id="editVenue" placeholder="例:〇〇河川敷グラウンド"></div>
+      <div class="field"><label>Googleマップリンク</label><input type="text" id="editMapsLink" placeholder="https://maps.app.goo.gl/..."></div>
+      <div style="display:flex; gap:8px; margin-bottom:18px;">
+        <button class="secondary-btn" id="editCancelBtn" style="margin:0; flex:1;">取消</button>
+        <button class="primary-btn" id="editSaveBtn" style="margin:0; flex:1;">保存</button>
+      </div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="num" style="color:var(--pitch);">${stats.teamGoals}</div><div class="lbl">得点</div></div>
+      <div class="stat-box"><div class="num" style="color:var(--red);">${stats.conceded}</div><div class="lbl">失点</div></div>
+      ${stats.pkText ? `<div class="stat-box"><div class="num" style="color:var(--gold); font-size:18px;">${stats.pkText}</div><div class="lbl">PK</div></div>` : ''}
+    </div>
+    <div class="result-section-title">息子のシュート</div>
+    <div class="shot-grid">
+      <div class="shot-box"><div class="num" style="color:var(--gold);">${stats.shotTally['ゴール']}</div><div class="lbl">ゴール</div></div>
+      <div class="shot-box"><div class="num">${stats.shotTally['枠外']}</div><div class="lbl">枠外</div></div>
+      <div class="shot-box"><div class="num">${stats.shotTally['GKセーブ']}</div><div class="lbl">GKセーブ</div></div>
+      <div class="shot-box"><div class="num">${stats.shotTally['DFブロック']}</div><div class="lbl">DFブロック</div></div>
+    </div>
+    ${record.endMemo ? `<div class="result-section-title">全体メモ</div><div class="memo-text" style="font-size:13px; margin-bottom:14px;">${record.endMemo}</div>` : ''}
+    <div class="result-section-title">タイムライン</div>
+    <div class="result-timeline">${timelineHtml}</div>
+  `;
+
+  document.getElementById('editMetaBtn').addEventListener('click', () => {
+    document.getElementById('editDate').value = record.date || '';
+    document.getElementById('editOpponent').value = record.opponent || '';
+    document.getElementById('editSurface').value = record.surface || '土';
+    document.getElementById('editVenue').value = record.venueName || '';
+    document.getElementById('editMapsLink').value = record.mapsLink || '';
+    document.getElementById('resultMetaView').style.display = 'none';
+    document.getElementById('resultMetaEdit').style.display = 'block';
+  });
+  document.getElementById('editCancelBtn').addEventListener('click', () => {
+    document.getElementById('resultMetaEdit').style.display = 'none';
+    document.getElementById('resultMetaView').style.display = 'block';
+  });
+  document.getElementById('editSaveBtn').addEventListener('click', () => {
+    record.date = document.getElementById('editDate').value;
+    record.opponent = document.getElementById('editOpponent').value || '(相手未入力)';
+    record.surface = document.getElementById('editSurface').value;
+    record.venueName = document.getElementById('editVenue').value;
+    record.mapsLink = document.getElementById('editMapsLink').value;
+    const list = loadMatches();
+    const idx = list.findIndex(m => m.id === record.id);
+    if(idx >= 0){ list[idx] = record; persistMatches(list); }
+    renderResult(record);
+  });
+}
+
+document.getElementById('saveResultBtn').addEventListener('click', () => {
+  const record = saveCurrentMatch();
+  renderResult(record);
+  showScreen('screenResult');
+});
+document.getElementById('resultToHistoryBtn').addEventListener('click', () => {
+  renderHistory();
+  showScreen('screenHistory');
+});
+document.getElementById('resultNewMatchBtn').addEventListener('click', () => {
+  location.reload();
+});
+
+/* ===================== 履歴一覧 ===================== */
+function renderHistory(){
+  const list = loadMatches();
+  const wrap = document.getElementById('historyList');
+  if(list.length === 0){
+    wrap.innerHTML = '<div class="history-empty">まだ保存された試合がありません</div>';
+    return;
+  }
+  wrap.innerHTML = '';
+  list.forEach(record => {
+    const stats = computeStats(record);
+    const item = document.createElement('div');
+    item.className = 'history-item';
+    item.innerHTML = `
+      <div class="meta" style="flex:1;">
+        <div class="opp">${record.opponent || '(相手未入力)'}</div>
+        <div class="sub">${record.date || ''} ・ ${record.surface}${record.venueName ? ' ・ ' + record.venueName : ''}</div>
+      </div>
+      <div class="score">${stats.teamGoals}-${stats.conceded}</div>
+      <button class="del" data-id="${record.id}">削除</button>
+    `;
+    item.querySelector('.meta').addEventListener('click', () => {
+      renderResult(record);
+      showScreen('screenResult');
+    });
+    item.querySelector('.score').addEventListener('click', () => {
+      renderResult(record);
+      showScreen('screenResult');
+    });
+    item.querySelector('.del').addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const updated = loadMatches().filter(m => m.id !== record.id);
+      persistMatches(updated);
+      renderHistory();
+    });
+    wrap.appendChild(item);
+  });
+}
+
+document.getElementById('viewHistoryBtn').addEventListener('click', () => {
+  renderHistory();
+  showScreen('screenHistory');
+});
+document.getElementById('historyBackBtn').addEventListener('click', () => showScreen('screenSetup'));
+
+/* ===================== 画面切替 ===================== */
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('show'));
+  document.getElementById(id).classList.add('show');
+}
+
+/* ===================== 1. 事前設定 ===================== */
+document.getElementById('inpDate').valueAsDate = new Date();
+
+document.querySelectorAll('#surfaceSeg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#surfaceSeg button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.surface = btn.dataset.v;
+  });
+});
+
+function renderStageEditor(){
+  const wrap = document.getElementById('stageEditor');
+  wrap.innerHTML = '';
+  state.stages.forEach((st, i) => {
+    const row = document.createElement('div');
+    row.className = 'stage-row';
+    row.innerHTML = `
+      <input type="text" value="${st.name}" data-i="${i}" data-f="name">
+      <input type="number" value="${st.min}" data-i="${i}" data-f="min" min="1">
+      <button class="rm" data-i="${i}">✕</button>
+    `;
+    wrap.appendChild(row);
+  });
+  wrap.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const i = +e.target.dataset.i, f = e.target.dataset.f;
+      state.stages[i][f] = f === 'min' ? (parseInt(e.target.value,10)||1) : e.target.value;
+    });
+  });
+  wrap.querySelectorAll('.rm').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(state.stages.length <= 1) return;
+      state.stages.splice(+btn.dataset.i, 1);
+      renderStageEditor();
+    });
+  });
+}
+renderStageEditor();
+
+document.getElementById('formatSelect').addEventListener('change', e => {
+  state.stages = JSON.parse(JSON.stringify(PRESETS[e.target.value]));
+  renderStageEditor();
+});
+
+document.getElementById('addStageBtn').addEventListener('click', () => {
+  state.stages.push({name:'延長前半', min:10});
+  renderStageEditor();
+});
+
+document.getElementById('toMatchBtn').addEventListener('click', () => {
+  state.matchId = 'm_' + Date.now();
+  state.date = document.getElementById('inpDate').value;
+  state.opponent = document.getElementById('inpOpponent').value || '(相手未入力)';
+  state.venueName = document.getElementById('inpVenueName').value;
+  state.mapsLink = document.getElementById('inpMapsLink').value;
+  state.currentStageIndex = 0;
+  state.elapsedSec = 0;
+  updateMatchMeta();
+  updateStageLabel();
+  showScreen('screenMatch');
+});
+
+function updateMatchMeta(){
+  const venueText = state.venueName ? ` @ ${state.venueName}` : '';
+  document.getElementById('matchMeta').textContent =
+    `${state.date || ''} vs ${state.opponent} ・ ${state.surface}${venueText}`;
+}
+
+/* ===================== 2. 試合中 ===================== */
+function updateStageLabel(){
+  const st = state.stages[state.currentStageIndex];
+  const statusText = state.running ? '進行中' : (state.elapsedSec>0 ? '一時停止' : '未開始');
+  document.getElementById('stageLabel').textContent =
+    `${st.name} (${state.currentStageIndex+1}/${state.stages.length}) ・ ${statusText}`;
+  document.getElementById('nextStageBtn').disabled = (state.currentStageIndex >= state.stages.length - 1);
+}
+
+function formatTime(sec){
+  const m = Math.floor(sec/60), s = sec%60;
+  return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
+function renderTimer(){
+  const st = state.stages[state.currentStageIndex];
+  const minute = Math.floor(state.elapsedSec/60) + 1;
+  const disp = document.getElementById('timerDisplay');
+  if(minute > st.min){
+    disp.innerHTML = formatTime(state.elapsedSec) + ' <span class="stoppage">+' + (minute - st.min) + '</span>';
+  } else {
+    disp.textContent = formatTime(state.elapsedSec);
+  }
+}
+
+function tick(){
+  if(state.running && state.startTimestamp){
+    state.elapsedSec = Math.floor((Date.now() - state.startTimestamp) / 1000);
+  }
+  renderTimer();
+}
+
+/* ---- 画面ロック防止(対応端末のみ) ---- */
+let wakeLock = null;
+async function requestWakeLock(){
+  try{
+    if('wakeLock' in navigator){
+      wakeLock = await navigator.wakeLock.request('screen');
+    }
+  }catch(e){ /* 非対応・拒否時は何もしない */ }
+}
+function releaseWakeLock(){
+  if(wakeLock){ wakeLock.release().catch(()=>{}); wakeLock = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible'){
+    tick();
+    if(state.running) requestWakeLock();
+  }
+});
+
+document.getElementById('startStopBtn').addEventListener('click', () => {
+  state.running = !state.running;
+  const btn = document.getElementById('startStopBtn');
+  if(state.running){
+    state.startTimestamp = Date.now() - state.elapsedSec * 1000;
+    state.timerInterval = setInterval(tick, 1000);
+    requestWakeLock();
+    btn.textContent = '⏸ 一時停止';
+  } else {
+    clearInterval(state.timerInterval);
+    releaseWakeLock();
+    btn.textContent = '▶ 再開';
+  }
+  updateStageLabel();
+});
+
+document.getElementById('nextStageBtn').addEventListener('click', () => {
+  if(state.currentStageIndex >= state.stages.length - 1) return;
+  clearInterval(state.timerInterval);
+  releaseWakeLock();
+  state.running = false;
+  state.currentStageIndex++;
+  state.elapsedSec = 0;
+  state.startTimestamp = null;
+  document.getElementById('startStopBtn').textContent = '▶ 開始';
+  document.getElementById('timerDisplay').textContent = '00:00';
+  updateStageLabel();
+});
+
+function currentMinuteLabel(){
+  const st = state.stages[state.currentStageIndex];
+  const minute = Math.floor(state.elapsedSec/60) + 1;
+  if(minute > st.min) return st.min + '+' + (minute - st.min);
+  return String(minute);
+}
+
+document.querySelectorAll('.ev-btn').forEach(btn => {
+  if(btn.dataset.type === 'シュート') return; // シュートは専用モーダルで処理
+  btn.addEventListener('click', () => {
+    const type = btn.dataset.type;
+    const entry = {
+      id: Date.now() + Math.random().toString(16).slice(2),
+      type,
+      stageName: state.stages[state.currentStageIndex].name,
+      minLabel: currentMinuteLabel(),
+      memo: '',
+      scorer: '',
+      result: ''
+    };
+    state.log.unshift(entry);
+    renderLog();
+    if(navigator.vibrate) navigator.vibrate(15);
+    if(type === '得点'){
+      pendingGoalLogId = entry.id;
+      document.getElementById('goalScorerInput').value = '';
+      document.getElementById('goalModalBg').classList.add('show');
+    }
+  });
+});
+
+/* ---- 息子のシュート結果 ---- */
+document.querySelector('.ev-btn.ev-shot').addEventListener('click', () => {
+  document.getElementById('shotModalBg').classList.add('show');
+});
+document.getElementById('shotCancelBtn').addEventListener('click', () => {
+  document.getElementById('shotModalBg').classList.remove('show');
+});
+document.querySelectorAll('.shot-result').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const entry = {
+      id: Date.now() + Math.random().toString(16).slice(2),
+      type: 'シュート',
+      stageName: state.stages[state.currentStageIndex].name,
+      minLabel: currentMinuteLabel(),
+      memo: '',
+      scorer: '息子',
+      result: btn.dataset.r
+    };
+    state.log.unshift(entry);
+    renderLog();
+    if(navigator.vibrate) navigator.vibrate(15);
+    document.getElementById('shotModalBg').classList.remove('show');
+  });
+});
+
+function dotClass(type, result){
+  if(type==='得点') return 'dot-goal';
+  if(type==='失点') return 'dot-conceded';
+  if(type==='シュート') return result === 'ゴール' ? 'dot-goal' : 'dot-shot';
+  return 'dot-sub';
+}
+
+function renderLog(){
+  const list = document.getElementById('logList');
+  const empty = document.getElementById('emptyMsg');
+  list.innerHTML = '';
+  if(state.log.length === 0){
+    list.appendChild(empty);
+    return;
+  }
+  state.log.forEach(entry => {
+    const item = document.createElement('div');
+    item.className = 'log-item';
+    const scorerText = entry.type === '得点' && entry.scorer ? `(${entry.scorer})` : '';
+    const shotText = entry.type === 'シュート' ? `(息子・${entry.result})` : '';
+    const memoShown = entry.memo ? `<div class="memo-text">📝 ${entry.memo}</div>` : '';
+    item.innerHTML = `
+      <div class="top">
+        <span class="min">${entry.minLabel}'</span>
+        <span class="dot ${dotClass(entry.type, entry.result)}"></span>
+        <span class="label">${entry.type} ${scorerText}${shotText}<span style="color:var(--muted); font-size:11px;"> / ${entry.stageName}</span></span>
+        <button class="memo-toggle" data-id="${entry.id}">✏️</button>
+        <button class="rm-log" data-id="${entry.id}">取消</button>
+      </div>
+      ${memoShown}
+      <textarea data-id="${entry.id}" style="display:none;" placeholder="メモを入力...">${entry.memo}</textarea>
+    `;
+    list.appendChild(item);
+  });
+
+  list.querySelectorAll('.memo-toggle').forEach(b => {
+    b.addEventListener('click', () => {
+      const ta = list.querySelector(`textarea[data-id="${b.dataset.id}"]`);
+      ta.style.display = ta.style.display === 'none' ? 'block' : 'none';
+      ta.focus();
+    });
+  });
+  list.querySelectorAll('textarea').forEach(ta => {
+    ta.addEventListener('input', () => {
+      const entry = state.log.find(l => l.id === ta.dataset.id);
+      if(entry) entry.memo = ta.value;
+    });
+    ta.addEventListener('blur', renderLog);
+  });
+  list.querySelectorAll('.rm-log').forEach(b => {
+    b.addEventListener('click', () => {
+      state.log = state.log.filter(l => l.id !== b.dataset.id);
+      renderLog();
+    });
+  });
+}
+
+/* ---- 得点メモモーダル ---- */
+function closeGoalModal(){
+  document.getElementById('goalModalBg').classList.remove('show');
+  pendingGoalLogId = null;
+}
+document.getElementById('quickSon').addEventListener('click', () => {
+  document.getElementById('goalScorerInput').value = '息子';
+});
+document.getElementById('quickTeammate').addEventListener('click', () => {
+  document.getElementById('goalScorerInput').value = 'チームメイト';
+});
+document.getElementById('goalSaveBtn').addEventListener('click', () => {
+  const entry = state.log.find(l => l.id === pendingGoalLogId);
+  if(entry) entry.scorer = document.getElementById('goalScorerInput').value;
+  closeGoalModal();
+  renderLog();
+});
+document.getElementById('goalSkipBtn').addEventListener('click', closeGoalModal);
+
+/* ===================== 3. PK戦 ===================== */
+document.getElementById('toPKBtn').addEventListener('click', () => {
+  clearInterval(state.timerInterval);
+  releaseWakeLock();
+  state.running = false;
+  renderPK();
+  showScreen('screenPK');
+});
+
+document.querySelectorAll('#pkPresetSeg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#pkPresetSeg button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.pk.perSide = +btn.dataset.v;
+    state.pk.kicksA = new Array(state.pk.perSide).fill(null);
+    state.pk.kicksB = new Array(state.pk.perSide).fill(null);
+    renderPK();
+  });
+});
+
+function renderPK(){
+  if(state.pk.kicksA.length === 0){
+    state.pk.kicksA = new Array(state.pk.perSide).fill(null);
+    state.pk.kicksB = new Array(state.pk.perSide).fill(null);
+  }
+  renderPKSide('pkKicksA', state.pk.kicksA);
+  renderPKSide('pkKicksB', state.pk.kicksB);
+  document.getElementById('pkScoreA').textContent = state.pk.kicksA.filter(r => r === 'goal').length;
+  document.getElementById('pkScoreB').textContent = state.pk.kicksB.filter(r => r === 'goal').length;
+}
+
+function renderPKSide(containerId, arr){
+  const wrap = document.getElementById(containerId);
+  wrap.innerHTML = '';
+  arr.forEach((res, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'pk-kick' + (res === 'goal' ? ' goal' : res === 'miss' ? ' miss' : '');
+    btn.textContent = res === 'goal' ? '○' : res === 'miss' ? '✕' : (i+1);
+    btn.addEventListener('click', () => {
+      arr[i] = res === null ? 'goal' : res === 'goal' ? 'miss' : null;
+      renderPK();
+    });
+    wrap.appendChild(btn);
+  });
+  const addBtn = document.createElement('button');
+  addBtn.className = 'pk-add';
+  addBtn.textContent = '+';
+  addBtn.title = 'サドンデス追加';
+  addBtn.addEventListener('click', () => { arr.push(null); renderPK(); });
+  wrap.appendChild(addBtn);
+}
+
+document.getElementById('pkBackBtn').addEventListener('click', () => showScreen('screenMatch'));
+document.getElementById('pkDoneBtn').addEventListener('click', () => showScreen('screenEnd'));
+
+/* ===================== 4. 試合終了 / メモ / 出力 ===================== */
+document.getElementById('toEndBtn').addEventListener('click', () => {
+  clearInterval(state.timerInterval);
+  releaseWakeLock();
+  state.running = false;
+  showScreen('screenEnd');
+});
+document.getElementById('endBackBtn').addEventListener('click', () => showScreen('screenMatch'));
+
+document.getElementById('endMemo').addEventListener('input', e => { state.endMemo = e.target.value; });
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const data = {
+    date: state.date,
+    opponent: state.opponent,
+    surface: state.surface,
+    venueName: state.venueName,
+    mapsLink: state.mapsLink,
+    stages: state.stages,
+    events: state.log.map(({id, type, stageName, minLabel, memo, scorer, result}) =>
+      ({id, type, stageName, minLabel, memo, scorer, result})),
+    pk: (state.pk.kicksA.some(v=>v!==null) || state.pk.kicksB.some(v=>v!==null)) ? {
+      perSide: state.pk.perSide,
+      home: state.pk.kicksA,
+      away: state.pk.kicksB
+    } : null,
+    memo: state.endMemo
+  };
+  document.getElementById('jsonView').textContent = JSON.stringify(data, null, 2);
+  document.getElementById('jsonPreviewWrap').style.display = 'block';
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(JSON.stringify(data, null, 2)).catch(()=>{});
+  }
+});
+</script>
+</body>
+</html>
