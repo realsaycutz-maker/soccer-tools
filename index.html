@@ -156,6 +156,7 @@
     <div class="scr-sub">試合前に入力してください</div>
 
     <div class="field"><label>日付</label><input type="date" id="inpDate"></div>
+    <div class="field"><label>試合名</label><input type="text" id="inpMatchName" placeholder="例:TM1本目・県大会予選など"></div>
     <div class="field"><label>対戦相手</label><input type="text" id="inpOpponent" placeholder="例:〇〇FC"></div>
     <div class="field">
       <label>場所(コンディション)</label>
@@ -167,6 +168,23 @@
     </div>
     <div class="field"><label>会場名</label><input type="text" id="inpVenueName" placeholder="例:〇〇河川敷グラウンド"></div>
     <div class="field"><label>Googleマップリンク</label><input type="text" id="inpMapsLink" placeholder="https://maps.app.goo.gl/..."></div>
+    <div class="field">
+      <label>息子の出場時間</label>
+      <div class="seg" id="playtimeSeg">
+        <button data-v="先発" class="active">先発</button>
+        <button data-v="ベンチスタート">ベンチスタート</button>
+      </div>
+      <input type="number" id="inpPlayMinutes" placeholder="出場分数(例:20)" style="margin-top:8px; display:none;">
+    </div>
+    <div class="field">
+      <label>ポジション</label>
+      <div class="seg" style="flex-wrap:wrap; gap:6px;" id="positionSeg">
+        <button data-v="FW" class="active">FW</button>
+        <button data-v="MF">MF</button>
+        <button data-v="DF">DF</button>
+        <button data-v="GK">GK</button>
+      </div>
+    </div>
 
     <div class="field">
       <label>フォーマット</label>
@@ -186,6 +204,7 @@
     </div>
 
     <div style="flex:1;"></div>
+    <button class="secondary-btn" id="copyLastMatchBtn">⚽ 前の試合をコピーして始める</button>
     <button class="secondary-btn" id="viewHistoryBtn">📋 過去の試合を見る</button>
     <button class="primary-btn" id="toMatchBtn">試合開始へ進む</button>
   </div>
@@ -199,6 +218,11 @@
       <div class="timer-controls">
         <button class="ctrl-btn primary" id="startStopBtn">▶ 開始</button>
         <button class="ctrl-btn" id="nextStageBtn">次のステージへ</button>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:center; margin-top:10px; align-items:center;">
+        <button class="ctrl-btn active" id="matchPlaytimeA" data-v="先発" style="border-color:var(--pitch); background:var(--pitch); color:#10140d;">先発</button>
+        <button class="ctrl-btn" id="matchPlaytimeB" data-v="ベンチスタート">ベンチスタート</button>
+        <button class="ctrl-btn" id="matchPositionBtn" style="min-width:48px;">FW</button>
       </div>
     </div>
 
@@ -322,6 +346,22 @@
   </div>
 </div>
 
+<!-- ポジション選択モーダル -->
+<div class="modal-bg" id="posModalBg">
+  <div class="modal">
+    <h4>⚽ ポジション</h4>
+    <div class="quick" style="flex-wrap:wrap;">
+      <button class="pos-btn" data-p="FW" style="flex:1 1 45%;">FW</button>
+      <button class="pos-btn" data-p="MF" style="flex:1 1 45%;">MF</button>
+      <button class="pos-btn" data-p="DF" style="flex:1 1 45%;">DF</button>
+      <button class="pos-btn" data-p="GK" style="flex:1 1 45%;">GK</button>
+    </div>
+    <div class="actions" style="margin-top:8px;">
+      <button class="skip" id="posModalClose">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ===================== 状態 ===================== */
 const PRESETS = {
@@ -334,7 +374,8 @@ const PRESETS = {
 
 let state = {
   matchId: null,
-  date:'', opponent:'', surface:'土', venueName:'', mapsLink:'',
+  date:'', matchName:'', opponent:'', surface:'土', venueName:'', mapsLink:'',
+  playtime:'先発', playMinutes:null, position:'FW',
   stages: JSON.parse(JSON.stringify(PRESETS.single)),
   currentStageIndex: 0,
   elapsedSec: 0,
@@ -358,10 +399,14 @@ function buildMatchRecord(){
   return {
     id: state.matchId,
     date: state.date,
+    matchName: state.matchName,
     opponent: state.opponent,
     surface: state.surface,
     venueName: state.venueName,
     mapsLink: state.mapsLink,
+    playtime: state.playtime,
+    playMinutes: state.playMinutes,
+    position: state.position,
     stages: state.stages,
     log: state.log,
     pk: state.pk,
@@ -419,12 +464,16 @@ function renderResult(record){
 
   document.getElementById('resultBody').innerHTML = `
     <div id="resultMetaView">
-      <div class="result-meta">${record.date || ''} vs ${record.opponent || '(相手未入力)'} ・ ${record.surface}${record.venueName ? ' ・ ' + record.venueName : ''}
+      <div class="result-meta">
+        ${record.matchName ? `<strong style="color:var(--pitch);">${record.matchName}</strong><br>` : ''}
+        ${record.date || ''} vs ${record.opponent || '(相手未入力)'} ・ ${record.surface}${record.venueName ? ' ・ ' + record.venueName : ''}
         ${record.mapsLink ? `<br><a href="${record.mapsLink}" target="_blank" style="color:var(--pitch);">📍 地図を開く</a>` : ''}
+        ${record.playtime ? `<br>⏱ 息子: ${record.position ? record.position + ' / ' : ''}${record.playtime === 'ベンチスタート' && record.playMinutes ? 'ベンチスタート・' + record.playMinutes + '分出場' : record.playtime}` : ''}
       </div>
-      <button class="secondary-btn" id="editMetaBtn" style="margin:0 0 16px;">✏️ 日付・対戦相手・場所を編集</button>
+      <button class="secondary-btn" id="editMetaBtn" style="margin:0 0 16px;">✏️ 試合情報を編集</button>
     </div>
     <div id="resultMetaEdit" style="display:none;">
+      <div class="field"><label>試合名</label><input type="text" id="editMatchName" placeholder="例:TM1本目"></div>
       <div class="field"><label>日付</label><input type="date" id="editDate"></div>
       <div class="field"><label>対戦相手</label><input type="text" id="editOpponent" placeholder="例:〇〇FC"></div>
       <div class="field">
@@ -433,6 +482,23 @@ function renderResult(record){
       </div>
       <div class="field"><label>会場名</label><input type="text" id="editVenue" placeholder="例:〇〇河川敷グラウンド"></div>
       <div class="field"><label>Googleマップリンク</label><input type="text" id="editMapsLink" placeholder="https://maps.app.goo.gl/..."></div>
+      <div class="field">
+        <label>息子の出場時間</label>
+        <select id="editPlaytime">
+          <option value="先発">先発</option>
+          <option value="ベンチスタート">ベンチスタート</option>
+        </select>
+        <input type="number" id="editPlayMinutes" placeholder="出場分数(例:20)" style="margin-top:8px;">
+      </div>
+      <div class="field">
+        <label>ポジション</label>
+        <select id="editPosition">
+          <option value="FW">FW</option>
+          <option value="MF">MF</option>
+          <option value="DF">DF</option>
+          <option value="GK">GK</option>
+        </select>
+      </div>
       <div style="display:flex; gap:8px; margin-bottom:18px;">
         <button class="secondary-btn" id="editCancelBtn" style="margin:0; flex:1;">取消</button>
         <button class="primary-btn" id="editSaveBtn" style="margin:0; flex:1;">保存</button>
@@ -456,11 +522,15 @@ function renderResult(record){
   `;
 
   document.getElementById('editMetaBtn').addEventListener('click', () => {
+    document.getElementById('editMatchName').value = record.matchName || '';
     document.getElementById('editDate').value = record.date || '';
     document.getElementById('editOpponent').value = record.opponent || '';
     document.getElementById('editSurface').value = record.surface || '土';
     document.getElementById('editVenue').value = record.venueName || '';
     document.getElementById('editMapsLink').value = record.mapsLink || '';
+    document.getElementById('editPlaytime').value = record.playtime || '先発';
+    document.getElementById('editPlayMinutes').value = record.playMinutes || '';
+    document.getElementById('editPosition').value = record.position || 'FW';
     document.getElementById('resultMetaView').style.display = 'none';
     document.getElementById('resultMetaEdit').style.display = 'block';
   });
@@ -469,11 +539,15 @@ function renderResult(record){
     document.getElementById('resultMetaView').style.display = 'block';
   });
   document.getElementById('editSaveBtn').addEventListener('click', () => {
+    record.matchName = document.getElementById('editMatchName').value;
     record.date = document.getElementById('editDate').value;
     record.opponent = document.getElementById('editOpponent').value || '(相手未入力)';
     record.surface = document.getElementById('editSurface').value;
     record.venueName = document.getElementById('editVenue').value;
     record.mapsLink = document.getElementById('editMapsLink').value;
+    record.playtime = document.getElementById('editPlaytime').value;
+    record.playMinutes = parseInt(document.getElementById('editPlayMinutes').value, 10) || null;
+    record.position = document.getElementById('editPosition').value;
     const list = loadMatches();
     const idx = list.findIndex(m => m.id === record.id);
     if(idx >= 0){ list[idx] = record; persistMatches(list); }
@@ -509,8 +583,9 @@ function renderHistory(){
     item.className = 'history-item';
     item.innerHTML = `
       <div class="meta" style="flex:1;">
-        <div class="opp">${record.opponent || '(相手未入力)'}</div>
+        <div class="opp">${record.matchName ? `<span style="color:var(--pitch);font-size:13px;">${record.matchName}</span> ` : ''}${record.opponent || '(相手未入力)'}</div>
         <div class="sub">${record.date || ''} ・ ${record.surface}${record.venueName ? ' ・ ' + record.venueName : ''}</div>
+        <div class="sub" style="margin-top:2px;">${record.position ? record.position + ' / ' : ''}${record.playtime === 'ベンチスタート' && record.playMinutes ? 'ベンチ・' + record.playMinutes + '分' : record.playtime || ''} ・ 🎯${stats.shotTally['ゴール']+stats.shotTally['枠外']+stats.shotTally['GKセーブ']+stats.shotTally['DFブロック']} ⚽${stats.shotTally['ゴール']}</div>
       </div>
       <div class="score">${stats.teamGoals}-${stats.conceded}</div>
       <button class="del" data-id="${record.id}">削除</button>
@@ -537,6 +612,55 @@ document.getElementById('viewHistoryBtn').addEventListener('click', () => {
   renderHistory();
   showScreen('screenHistory');
 });
+
+document.getElementById('copyLastMatchBtn').addEventListener('click', () => {
+  const list = loadMatches();
+  if(list.length === 0){ alert('まだ保存された試合がありません'); return; }
+  const last = list[0];
+
+  // 試合名を自動インクリメント(例: TM1本目→TM2本目)
+  let nextName = last.matchName || '';
+  const numMatch = nextName.match(/(\d+)(本目)/);
+  if(numMatch){
+    nextName = nextName.replace(/\d+本目/, (parseInt(numMatch[1])+1) + '本目');
+  }
+
+  // フォーム入力欄に反映
+  document.getElementById('inpMatchName').value = nextName;
+  document.getElementById('inpDate').value = last.date || '';
+  document.getElementById('inpOpponent').value = last.opponent || '';
+  document.getElementById('inpVenueName').value = last.venueName || '';
+  document.getElementById('inpMapsLink').value = last.mapsLink || '';
+
+  // 芝ボタン
+  document.querySelectorAll('#surfaceSeg button').forEach(b => {
+    b.classList.toggle('active', b.dataset.v === last.surface);
+  });
+  state.surface = last.surface || '土';
+
+  // 出場時間ボタン
+  document.querySelectorAll('#playtimeSeg button').forEach(b => {
+    b.classList.toggle('active', b.dataset.v === last.playtime);
+  });
+  state.playtime = last.playtime || '先発';
+  document.getElementById('inpPlayMinutes').style.display =
+    last.playtime === 'ベンチスタート' ? 'block' : 'none';
+  document.getElementById('inpPlayMinutes').value = last.playMinutes || '';
+
+  // ポジションボタン
+  document.querySelectorAll('#positionSeg button').forEach(b => {
+    b.classList.toggle('active', b.dataset.v === last.position);
+  });
+  state.position = last.position || 'FW';
+
+  // フォーマット・ステージ
+  if(last.stages){
+    state.stages = JSON.parse(JSON.stringify(last.stages));
+    renderStageEditor();
+  }
+
+  alert(`「${last.matchName || last.opponent}」の情報をコピーしました！\n変更が必要な箇所だけ編集してください。`);
+});
 document.getElementById('historyBackBtn').addEventListener('click', () => showScreen('screenSetup'));
 
 /* ===================== 画面切替 ===================== */
@@ -553,6 +677,27 @@ document.querySelectorAll('#surfaceSeg button').forEach(btn => {
     document.querySelectorAll('#surfaceSeg button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     state.surface = btn.dataset.v;
+  });
+});
+
+document.querySelectorAll('#playtimeSeg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#playtimeSeg button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.playtime = btn.dataset.v;
+    document.getElementById('inpPlayMinutes').style.display =
+      btn.dataset.v === 'ベンチスタート' ? 'block' : 'none';
+  });
+});
+document.getElementById('inpPlayMinutes').addEventListener('input', e => {
+  state.playMinutes = parseInt(e.target.value, 10) || null;
+});
+
+document.querySelectorAll('#positionSeg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#positionSeg button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.position = btn.dataset.v;
   });
 });
 
@@ -598,20 +743,62 @@ document.getElementById('addStageBtn').addEventListener('click', () => {
 document.getElementById('toMatchBtn').addEventListener('click', () => {
   state.matchId = 'm_' + Date.now();
   state.date = document.getElementById('inpDate').value;
+  state.matchName = document.getElementById('inpMatchName').value;
   state.opponent = document.getElementById('inpOpponent').value || '(相手未入力)';
   state.venueName = document.getElementById('inpVenueName').value;
   state.mapsLink = document.getElementById('inpMapsLink').value;
   state.currentStageIndex = 0;
   state.elapsedSec = 0;
+  // 試合中の先発/ベンチボタンを事前設定と同期
+  syncMatchPlaytimeButtons();
+  document.getElementById('matchPositionBtn').textContent = state.position || 'FW';
   updateMatchMeta();
   updateStageLabel();
   showScreen('screenMatch');
 });
 
+function syncMatchPlaytimeButtons(){
+  const btnA = document.getElementById('matchPlaytimeA');
+  const btnB = document.getElementById('matchPlaytimeB');
+  if(state.playtime === 'ベンチスタート'){
+    btnA.style.background = 'var(--surface)'; btnA.style.color = 'var(--text)'; btnA.style.borderColor = 'var(--line)';
+    btnB.style.background = 'var(--pitch)'; btnB.style.color = '#10140d'; btnB.style.borderColor = 'var(--pitch)';
+  } else {
+    btnA.style.background = 'var(--pitch)'; btnA.style.color = '#10140d'; btnA.style.borderColor = 'var(--pitch)';
+    btnB.style.background = 'var(--surface)'; btnB.style.color = 'var(--text)'; btnB.style.borderColor = 'var(--line)';
+  }
+}
+
+document.getElementById('matchPlaytimeA').addEventListener('click', () => {
+  state.playtime = '先発'; state.playMinutes = null;
+  syncMatchPlaytimeButtons();
+});
+document.getElementById('matchPlaytimeB').addEventListener('click', () => {
+  state.playtime = 'ベンチスタート';
+  syncMatchPlaytimeButtons();
+});
+
+/* ---- 試合中ポジション切り替え ---- */
+const POSITIONS = ['FW','MF','DF','GK'];
+document.getElementById('matchPositionBtn').addEventListener('click', () => {
+  document.getElementById('posModalBg').classList.add('show');
+});
+document.getElementById('posModalClose').addEventListener('click', () => {
+  document.getElementById('posModalBg').classList.remove('show');
+});
+document.querySelectorAll('.pos-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.position = btn.dataset.p;
+    document.getElementById('matchPositionBtn').textContent = btn.dataset.p;
+    document.getElementById('posModalBg').classList.remove('show');
+  });
+});
+
 function updateMatchMeta(){
   const venueText = state.venueName ? ` @ ${state.venueName}` : '';
+  const nameText = state.matchName ? `【${state.matchName}】 ` : '';
   document.getElementById('matchMeta').textContent =
-    `${state.date || ''} vs ${state.opponent} ・ ${state.surface}${venueText}`;
+    `${nameText}${state.date || ''} vs ${state.opponent} ・ ${state.surface}${venueText}`;
 }
 
 /* ===================== 2. 試合中 ===================== */
