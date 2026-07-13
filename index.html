@@ -174,16 +174,11 @@
         <button data-v="先発" class="active">先発</button>
         <button data-v="ベンチスタート">ベンチスタート</button>
       </div>
-      <input type="number" id="inpPlayMinutes" placeholder="出場分数(例:20)" style="margin-top:8px; display:none;">
+      <input type="number" id="inpPlayMinutes" placeholder="出場分数(例:0、20)" style="margin-top:8px; display:none;">
     </div>
     <div class="field">
-      <label>ポジション</label>
-      <div class="seg" style="flex-wrap:wrap; gap:6px;" id="positionSeg">
-        <button data-v="FW" class="active">FW</button>
-        <button data-v="MF">MF</button>
-        <button data-v="DF">DF</button>
-        <button data-v="GK">GK</button>
-      </div>
+      <label>ポジション(自由入力 例:FW、FW→CB)</label>
+      <input type="text" id="inpPosition" placeholder="例:FW、MF、FW→CB">
     </div>
 
     <div class="field">
@@ -222,7 +217,7 @@
       <div style="display:flex; gap:8px; justify-content:center; margin-top:10px; align-items:center;">
         <button class="ctrl-btn active" id="matchPlaytimeA" data-v="先発" style="border-color:var(--pitch); background:var(--pitch); color:#10140d;">先発</button>
         <button class="ctrl-btn" id="matchPlaytimeB" data-v="ベンチスタート">ベンチスタート</button>
-        <button class="ctrl-btn" id="matchPositionBtn" style="min-width:48px;">FW</button>
+        <input type="text" id="matchPositionInput" placeholder="FW" style="width:70px; background:var(--surface); border:1px solid var(--line); border-radius:999px; color:var(--text); font-size:12px; padding:8px 10px; text-align:center;">
       </div>
     </div>
 
@@ -468,7 +463,7 @@ function renderResult(record){
         ${record.matchName ? `<strong style="color:var(--pitch);">${record.matchName}</strong><br>` : ''}
         ${record.date || ''} vs ${record.opponent || '(相手未入力)'} ・ ${record.surface}${record.venueName ? ' ・ ' + record.venueName : ''}
         ${record.mapsLink ? `<br><a href="${record.mapsLink}" target="_blank" style="color:var(--pitch);">📍 地図を開く</a>` : ''}
-        ${record.playtime ? `<br>⏱ 息子: ${record.position ? record.position + ' / ' : ''}${record.playtime === 'ベンチスタート' && record.playMinutes ? 'ベンチスタート・' + record.playMinutes + '分出場' : record.playtime}` : ''}
+        ${record.playtime ? `<br>⏱ 息子: ${record.position ? record.position + ' / ' : ''}${record.playtime === 'ベンチスタート' && record.playMinutes != null ? 'ベンチスタート・' + record.playMinutes + '分出場' : record.playtime}` : ''}
       </div>
       <button class="secondary-btn" id="editMetaBtn" style="margin:0 0 16px;">✏️ 試合情報を編集</button>
     </div>
@@ -491,13 +486,8 @@ function renderResult(record){
         <input type="number" id="editPlayMinutes" placeholder="出場分数(例:20)" style="margin-top:8px;">
       </div>
       <div class="field">
-        <label>ポジション</label>
-        <select id="editPosition">
-          <option value="FW">FW</option>
-          <option value="MF">MF</option>
-          <option value="DF">DF</option>
-          <option value="GK">GK</option>
-        </select>
+        <label>ポジション(自由入力 例:FW、FW→CB)</label>
+        <input type="text" id="editPosition" placeholder="例:FW、MF、FW→CB">
       </div>
       <div style="display:flex; gap:8px; margin-bottom:18px;">
         <button class="secondary-btn" id="editCancelBtn" style="margin:0; flex:1;">取消</button>
@@ -546,7 +536,8 @@ function renderResult(record){
     record.venueName = document.getElementById('editVenue').value;
     record.mapsLink = document.getElementById('editMapsLink').value;
     record.playtime = document.getElementById('editPlaytime').value;
-    record.playMinutes = parseInt(document.getElementById('editPlayMinutes').value, 10) || null;
+    const pm = document.getElementById('editPlayMinutes').value;
+    record.playMinutes = pm !== '' ? parseInt(pm, 10) : null;
     record.position = document.getElementById('editPosition').value;
     const list = loadMatches();
     const idx = list.findIndex(m => m.id === record.id);
@@ -585,7 +576,7 @@ function renderHistory(){
       <div class="meta" style="flex:1;">
         <div class="opp">${record.matchName ? `<span style="color:var(--pitch);font-size:13px;">${record.matchName}</span> ` : ''}${record.opponent || '(相手未入力)'}</div>
         <div class="sub">${record.date || ''} ・ ${record.surface}${record.venueName ? ' ・ ' + record.venueName : ''}</div>
-        <div class="sub" style="margin-top:2px;">${record.position ? record.position + ' / ' : ''}${record.playtime === 'ベンチスタート' && record.playMinutes ? 'ベンチ・' + record.playMinutes + '分' : record.playtime || ''} ・ 🎯${stats.shotTally['ゴール']+stats.shotTally['枠外']+stats.shotTally['GKセーブ']+stats.shotTally['DFブロック']} ⚽${stats.shotTally['ゴール']}</div>
+        <div class="sub" style="margin-top:2px;">${record.position ? record.position + ' / ' : ''}${record.playtime === 'ベンチスタート' && record.playMinutes != null ? 'ベンチ・' + record.playMinutes + '分' : record.playtime || ''} ・ 🎯${stats.shotTally['ゴール']+stats.shotTally['枠外']+stats.shotTally['GKセーブ']+stats.shotTally['DFブロック']} ⚽${stats.shotTally['ゴール']}</div>
       </div>
       <div class="score">${stats.teamGoals}-${stats.conceded}</div>
       <button class="del" data-id="${record.id}">削除</button>
@@ -647,11 +638,9 @@ document.getElementById('copyLastMatchBtn').addEventListener('click', () => {
     last.playtime === 'ベンチスタート' ? 'block' : 'none';
   document.getElementById('inpPlayMinutes').value = last.playMinutes || '';
 
-  // ポジションボタン
-  document.querySelectorAll('#positionSeg button').forEach(b => {
-    b.classList.toggle('active', b.dataset.v === last.position);
-  });
-  state.position = last.position || 'FW';
+  // ポジション
+  document.getElementById('inpPosition').value = last.position || '';
+  state.position = last.position || '';
 
   // フォーマット・ステージ
   if(last.stages){
@@ -690,15 +679,11 @@ document.querySelectorAll('#playtimeSeg button').forEach(btn => {
   });
 });
 document.getElementById('inpPlayMinutes').addEventListener('input', e => {
-  state.playMinutes = parseInt(e.target.value, 10) || null;
+  state.playMinutes = e.target.value !== '' ? parseInt(e.target.value, 10) : null;
 });
 
-document.querySelectorAll('#positionSeg button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#positionSeg button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    state.position = btn.dataset.v;
-  });
+document.getElementById('inpPosition').addEventListener('input', e => {
+  state.position = e.target.value;
 });
 
 function renderStageEditor(){
@@ -747,11 +732,12 @@ document.getElementById('toMatchBtn').addEventListener('click', () => {
   state.opponent = document.getElementById('inpOpponent').value || '(相手未入力)';
   state.venueName = document.getElementById('inpVenueName').value;
   state.mapsLink = document.getElementById('inpMapsLink').value;
+  state.position = document.getElementById('inpPosition').value;
   state.currentStageIndex = 0;
   state.elapsedSec = 0;
   // 試合中の先発/ベンチボタンを事前設定と同期
   syncMatchPlaytimeButtons();
-  document.getElementById('matchPositionBtn').textContent = state.position || 'FW';
+  document.getElementById('matchPositionInput').value = state.position || '';
   updateMatchMeta();
   updateStageLabel();
   showScreen('screenMatch');
@@ -778,20 +764,9 @@ document.getElementById('matchPlaytimeB').addEventListener('click', () => {
   syncMatchPlaytimeButtons();
 });
 
-/* ---- 試合中ポジション切り替え ---- */
-const POSITIONS = ['FW','MF','DF','GK'];
-document.getElementById('matchPositionBtn').addEventListener('click', () => {
-  document.getElementById('posModalBg').classList.add('show');
-});
-document.getElementById('posModalClose').addEventListener('click', () => {
-  document.getElementById('posModalBg').classList.remove('show');
-});
-document.querySelectorAll('.pos-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    state.position = btn.dataset.p;
-    document.getElementById('matchPositionBtn').textContent = btn.dataset.p;
-    document.getElementById('posModalBg').classList.remove('show');
-  });
+/* ---- 試合中ポジション入力 ---- */
+document.getElementById('matchPositionInput').addEventListener('input', e => {
+  state.position = e.target.value;
 });
 
 function updateMatchMeta(){
