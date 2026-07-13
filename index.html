@@ -423,7 +423,7 @@ function playtimeLabel(record){
   const pm = record.playMinutes;
   const stageMin = record.stages ? record.stages.reduce((s,st)=>s+st.min,0) : null;
   if(pt === 'スタート'){
-    if(pm != null && stageMin && pm >= stageMin) return 'スタート・フル出場';
+    if(pm != null && stageMin && pm >= stageMin) return `スタート・${pm}分(フル)`;
     if(pm != null) return `スタート・${pm}分`;
     return 'スタート';
   }
