@@ -171,8 +171,8 @@
     <div class="field">
       <label>息子の出場時間</label>
       <div class="seg" id="playtimeSeg">
-        <button data-v="先発" class="active">先発</button>
-        <button data-v="ベンチスタート">ベンチスタート</button>
+        <button data-v="スタート" class="active">スタート</button>
+        <button data-v="ベンチ">ベンチ</button>
       </div>
       <input type="number" id="inpPlayMinutes" placeholder="出場分数(例:0、20)" style="margin-top:8px; display:none;">
     </div>
@@ -215,8 +215,8 @@
         <button class="ctrl-btn" id="nextStageBtn">次のステージへ</button>
       </div>
       <div style="display:flex; gap:8px; justify-content:center; margin-top:10px; align-items:center;">
-        <button class="ctrl-btn active" id="matchPlaytimeA" data-v="先発" style="border-color:var(--pitch); background:var(--pitch); color:#10140d;">先発</button>
-        <button class="ctrl-btn" id="matchPlaytimeB" data-v="ベンチスタート">ベンチスタート</button>
+        <button class="ctrl-btn active" id="matchPlaytimeA" data-v="スタート" style="border-color:var(--pitch); background:var(--pitch); color:#10140d;">スタート</button>
+        <button class="ctrl-btn" id="matchPlaytimeB" data-v="ベンチ">ベンチ</button>
         <input type="text" id="matchPositionInput" placeholder="FW" style="width:70px; background:var(--surface); border:1px solid var(--line); border-radius:999px; color:var(--text); font-size:12px; padding:8px 10px; text-align:center;">
       </div>
     </div>
@@ -370,7 +370,7 @@ const PRESETS = {
 let state = {
   matchId: null,
   date:'', matchName:'', opponent:'', surface:'土', venueName:'', mapsLink:'',
-  playtime:'先発', playMinutes:null, position:'FW',
+  playtime:'スタート', playMinutes:null, position:'',
   stages: JSON.parse(JSON.stringify(PRESETS.single)),
   currentStageIndex: 0,
   elapsedSec: 0,
@@ -418,6 +418,22 @@ function saveCurrentMatch(){
   persistMatches(list);
   return record;
 }
+function playtimeLabel(record){
+  const pt = record.playtime || '';
+  const pm = record.playMinutes;
+  const stageMin = record.stages ? record.stages.reduce((s,st)=>s+st.min,0) : null;
+  if(pt === 'スタート'){
+    if(pm != null && stageMin && pm >= stageMin) return 'スタート・フル出場';
+    if(pm != null) return `スタート・${pm}分`;
+    return 'スタート';
+  }
+  if(pt === 'ベンチ'){
+    if(pm != null) return `ベンチ・${pm}分`;
+    return 'ベンチ';
+  }
+  return pt;
+}
+
 function computeStats(record){
   const teamGoals = record.log.filter(e => e.type === '得点').length
     + record.log.filter(e => e.type === 'シュート' && e.result === 'ゴール').length;
@@ -463,7 +479,7 @@ function renderResult(record){
         ${record.matchName ? `<strong style="color:var(--pitch);">${record.matchName}</strong><br>` : ''}
         ${record.date || ''} vs ${record.opponent || '(相手未入力)'} ・ ${record.surface}${record.venueName ? ' ・ ' + record.venueName : ''}
         ${record.mapsLink ? `<br><a href="${record.mapsLink}" target="_blank" style="color:var(--pitch);">📍 地図を開く</a>` : ''}
-        ${record.playtime ? `<br>⏱ 息子: ${record.position ? record.position + ' / ' : ''}${record.playtime === 'ベンチスタート' && record.playMinutes != null ? 'ベンチスタート・' + record.playMinutes + '分出場' : record.playtime}` : ''}
+        ${record.playtime ? `<br>⏱ 息子: ${record.position ? record.position + ' / ' : ''}${playtimeLabel(record)}` : ''}
       </div>
       <button class="secondary-btn" id="editMetaBtn" style="margin:0 0 16px;">✏️ 試合情報を編集</button>
     </div>
@@ -480,8 +496,8 @@ function renderResult(record){
       <div class="field">
         <label>息子の出場時間</label>
         <select id="editPlaytime">
-          <option value="先発">先発</option>
-          <option value="ベンチスタート">ベンチスタート</option>
+          <option value="スタート">スタート</option>
+          <option value="ベンチ">ベンチ</option>
         </select>
         <input type="number" id="editPlayMinutes" placeholder="出場分数(例:20)" style="margin-top:8px;">
       </div>
@@ -576,7 +592,7 @@ function renderHistory(){
       <div class="meta" style="flex:1;">
         <div class="opp">${record.matchName ? `<span style="color:var(--pitch);font-size:13px;">${record.matchName}</span> ` : ''}${record.opponent || '(相手未入力)'}</div>
         <div class="sub">${record.date || ''} ・ ${record.surface}${record.venueName ? ' ・ ' + record.venueName : ''}</div>
-        <div class="sub" style="margin-top:2px;">${record.position ? record.position + ' / ' : ''}${record.playtime === 'ベンチスタート' && record.playMinutes != null ? 'ベンチ・' + record.playMinutes + '分' : record.playtime || ''} ・ 🎯${stats.shotTally['ゴール']+stats.shotTally['枠外']+stats.shotTally['GKセーブ']+stats.shotTally['DFブロック']} ⚽${stats.shotTally['ゴール']}</div>
+        <div class="sub" style="margin-top:2px;">${record.position ? record.position + ' / ' : ''}${playtimeLabel(record)} ・ 🎯${stats.shotTally['ゴール']+stats.shotTally['枠外']+stats.shotTally['GKセーブ']+stats.shotTally['DFブロック']} ⚽${stats.shotTally['ゴール']}</div>
       </div>
       <div class="score">${stats.teamGoals}-${stats.conceded}</div>
       <button class="del" data-id="${record.id}">削除</button>
@@ -635,7 +651,7 @@ document.getElementById('copyLastMatchBtn').addEventListener('click', () => {
   });
   state.playtime = last.playtime || '先発';
   document.getElementById('inpPlayMinutes').style.display =
-    last.playtime === 'ベンチスタート' ? 'block' : 'none';
+    last.playtime === 'ベンチ' ? 'block' : 'none';
   document.getElementById('inpPlayMinutes').value = last.playMinutes || '';
 
   // ポジション
@@ -675,7 +691,7 @@ document.querySelectorAll('#playtimeSeg button').forEach(btn => {
     btn.classList.add('active');
     state.playtime = btn.dataset.v;
     document.getElementById('inpPlayMinutes').style.display =
-      btn.dataset.v === 'ベンチスタート' ? 'block' : 'none';
+      btn.dataset.v === 'ベンチ' ? 'block' : 'none';
   });
 });
 document.getElementById('inpPlayMinutes').addEventListener('input', e => {
@@ -746,7 +762,7 @@ document.getElementById('toMatchBtn').addEventListener('click', () => {
 function syncMatchPlaytimeButtons(){
   const btnA = document.getElementById('matchPlaytimeA');
   const btnB = document.getElementById('matchPlaytimeB');
-  if(state.playtime === 'ベンチスタート'){
+  if(state.playtime === 'ベンチ'){
     btnA.style.background = 'var(--surface)'; btnA.style.color = 'var(--text)'; btnA.style.borderColor = 'var(--line)';
     btnB.style.background = 'var(--pitch)'; btnB.style.color = '#10140d'; btnB.style.borderColor = 'var(--pitch)';
   } else {
@@ -760,7 +776,7 @@ document.getElementById('matchPlaytimeA').addEventListener('click', () => {
   syncMatchPlaytimeButtons();
 });
 document.getElementById('matchPlaytimeB').addEventListener('click', () => {
-  state.playtime = 'ベンチスタート';
+  state.playtime = 'ベンチ';
   syncMatchPlaytimeButtons();
 });
 
