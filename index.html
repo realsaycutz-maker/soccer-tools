@@ -707,13 +707,18 @@ document.getElementById('historyBackBtn').addEventListener('click', () => showSc
 document.getElementById('calendarBackBtn').addEventListener('click', () => { renderHistory(); showScreen('screenHistory'); });
 
 document.getElementById('calendarBtn').addEventListener('click', () => {
-  renderCalendar();
-  showScreen('screenCalendar');
+  try {
+    renderCalendar();
+    showScreen('screenCalendar');
+  } catch(e) {
+    alert('カレンダーの表示でエラーが発生しました: ' + e.message);
+  }
 });
 
 function renderCalendar(){
   const list = loadMatches();
   const body = document.getElementById('calendarBody');
+  if(!body){ return; }
   if(list.length === 0){ body.innerHTML = '<div class="history-empty">まだ保存された試合がありません</div>'; return; }
 
   // 日付ごとにグループ化
@@ -725,13 +730,13 @@ function renderCalendar(){
   });
 
   const dates = Object.keys(byDate).sort((a,b) => b.localeCompare(a));
-  body.innerHTML = dates.map(date => {
+  let html = '';
+  dates.forEach(date => {
     const records = byDate[date];
-    // 日別集計
     let totalPlayMin = 0;
     let totalShots = 0;
     let totalGoals = 0;
-    let matchCount = records.length;
+    const matchCount = records.length;
     records.forEach(r => {
       if(r.playMinutes != null) totalPlayMin += r.playMinutes;
       const st = computeStats(r);
@@ -739,21 +744,23 @@ function renderCalendar(){
       totalGoals += st.shotTally['ゴール'];
     });
 
-    const matchRows = records.slice().reverse().map(r => {
+    let matchRows = '';
+    records.slice().reverse().forEach(r => {
       const st = computeStats(r);
       const shots = st.shotTally['ゴール']+st.shotTally['枠外']+st.shotTally['GKセーブ']+st.shotTally['DFブロック'];
-      return `<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px;">
+      matchRows += `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px;">
         <span style="color:var(--pitch);">${r.matchName || r.opponent || '(未入力)'}</span>
         <span style="color:var(--muted);">${playtimeLabel(r)} ・ 🎯${shots} ⚽${st.shotTally['ゴール']}</span>
       </div>`;
-    }).join('');
+    });
 
-    return `<div style="background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px;">
-      <div style="font-family:'Oswald',sans-serif; font-size:18px; font-weight:600; margin-bottom:4px;">${date}</div>
-      <div style="font-size:12px; color:var(--muted); margin-bottom:10px;">${matchCount}本 ・ 出場合計 ${totalPlayMin}分 ・ 🎯${totalShots} ⚽${totalGoals}</div>
+    html += `<div style="background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;">
+      <div style="font-family:'Oswald',sans-serif;font-size:18px;font-weight:600;margin-bottom:4px;">${date}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">${matchCount}本 ・ 出場合計 ${totalPlayMin}分 ・ 🎯${totalShots} ⚽${totalGoals}</div>
       ${matchRows}
     </div>`;
-  }).join('');
+  });
+  body.innerHTML = html;
 }
 
 /* ===================== 画面切替 ===================== */
