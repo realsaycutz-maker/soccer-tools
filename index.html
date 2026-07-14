@@ -304,6 +304,7 @@
   <div class="screen" id="screenHistory">
     <h2 class="scr-title">試合履歴</h2>
     <div class="memo-body" id="historyList"></div>
+    <button class="secondary-btn" id="calendarBtn">📅 カレンダーで見る</button>
     <button class="secondary-btn" id="historyBackBtn">セットアップに戻る</button>
   </div>
 
@@ -339,6 +340,13 @@
       <button class="skip" id="shotCancelBtn">取消</button>
     </div>
   </div>
+  <!-- ===== 7. カレンダー ===== -->
+  <div class="screen" id="screenCalendar">
+    <h2 class="scr-title">📅 カレンダー</h2>
+    <div class="memo-body" id="calendarBody" style="padding-bottom:20px;"></div>
+    <button class="secondary-btn" id="calendarBackBtn">履歴一覧へ</button>
+  </div>
+
 </div>
 
 <!-- ポジション選択モーダル -->
@@ -505,6 +513,10 @@ function renderResult(record){
         <label>ポジション(自由入力 例:FW、FW→CB)</label>
         <input type="text" id="editPosition" placeholder="例:FW、MF、FW→CB">
       </div>
+      <div class="field">
+        <label>ステージ分数(1本マッチなら1行、前後半なら2行)</label>
+        <div id="editStageEditor"></div>
+      </div>
       <div style="display:flex; gap:8px; margin-bottom:18px;">
         <button class="secondary-btn" id="editCancelBtn" style="margin:0; flex:1;">取消</button>
         <button class="primary-btn" id="editSaveBtn" style="margin:0; flex:1;">保存</button>
@@ -534,12 +546,34 @@ function renderResult(record){
     document.getElementById('editSurface').value = record.surface || '土';
     document.getElementById('editVenue').value = record.venueName || '';
     document.getElementById('editMapsLink').value = record.mapsLink || '';
-    document.getElementById('editPlaytime').value = record.playtime || '先発';
-    document.getElementById('editPlayMinutes').value = record.playMinutes || '';
-    document.getElementById('editPosition').value = record.position || 'FW';
+    document.getElementById('editPlaytime').value = record.playtime || 'スタート';
+    document.getElementById('editPlayMinutes').value = record.playMinutes != null ? record.playMinutes : '';
+    document.getElementById('editPosition').value = record.position || '';
+    // ステージエディタを描画
+    renderEditStageEditor(record.stages || [{name:'試合', min:25}]);
     document.getElementById('resultMetaView').style.display = 'none';
     document.getElementById('resultMetaEdit').style.display = 'block';
   });
+
+  function renderEditStageEditor(stages){
+    const wrap = document.getElementById('editStageEditor');
+    wrap.innerHTML = '';
+    stages.forEach((st, i) => {
+      const row = document.createElement('div');
+      row.className = 'stage-row';
+      row.innerHTML = `
+        <input type="text" value="${st.name}" data-i="${i}" data-f="name" style="flex:1.3;">
+        <input type="number" value="${st.min}" data-i="${i}" data-f="min" min="1" style="flex:1; text-align:center;">
+      `;
+      row.querySelectorAll('input').forEach(inp => {
+        inp.addEventListener('input', e => {
+          stages[i][e.target.dataset.f] = e.target.dataset.f === 'min' ? (parseInt(e.target.value,10)||1) : e.target.value;
+        });
+      });
+      wrap.appendChild(row);
+    });
+    wrap._stages = stages;
+  }
   document.getElementById('editCancelBtn').addEventListener('click', () => {
     document.getElementById('resultMetaEdit').style.display = 'none';
     document.getElementById('resultMetaView').style.display = 'block';
@@ -555,6 +589,9 @@ function renderResult(record){
     const pm = document.getElementById('editPlayMinutes').value;
     record.playMinutes = pm !== '' ? parseInt(pm, 10) : null;
     record.position = document.getElementById('editPosition').value;
+    // ステージを保存
+    const editWrap = document.getElementById('editStageEditor');
+    if(editWrap._stages) record.stages = JSON.parse(JSON.stringify(editWrap._stages));
     const list = loadMatches();
     const idx = list.findIndex(m => m.id === record.id);
     if(idx >= 0){ list[idx] = record; persistMatches(list); }
@@ -667,6 +704,57 @@ document.getElementById('copyLastMatchBtn').addEventListener('click', () => {
   alert(`「${last.matchName || last.opponent}」の情報をコピーしました！\n変更が必要な箇所だけ編集してください。`);
 });
 document.getElementById('historyBackBtn').addEventListener('click', () => showScreen('screenSetup'));
+document.getElementById('calendarBackBtn').addEventListener('click', () => { renderHistory(); showScreen('screenHistory'); });
+
+document.getElementById('calendarBtn').addEventListener('click', () => {
+  renderCalendar();
+  showScreen('screenCalendar');
+});
+
+function renderCalendar(){
+  const list = loadMatches();
+  const body = document.getElementById('calendarBody');
+  if(list.length === 0){ body.innerHTML = '<div class="history-empty">まだ保存された試合がありません</div>'; return; }
+
+  // 日付ごとにグループ化
+  const byDate = {};
+  list.forEach(record => {
+    const d = record.date || '日付未設定';
+    if(!byDate[d]) byDate[d] = [];
+    byDate[d].push(record);
+  });
+
+  const dates = Object.keys(byDate).sort((a,b) => b.localeCompare(a));
+  body.innerHTML = dates.map(date => {
+    const records = byDate[date];
+    // 日別集計
+    let totalPlayMin = 0;
+    let totalShots = 0;
+    let totalGoals = 0;
+    let matchCount = records.length;
+    records.forEach(r => {
+      if(r.playMinutes != null) totalPlayMin += r.playMinutes;
+      const st = computeStats(r);
+      totalShots += st.shotTally['ゴール'] + st.shotTally['枠外'] + st.shotTally['GKセーブ'] + st.shotTally['DFブロック'];
+      totalGoals += st.shotTally['ゴール'];
+    });
+
+    const matchRows = records.slice().reverse().map(r => {
+      const st = computeStats(r);
+      const shots = st.shotTally['ゴール']+st.shotTally['枠外']+st.shotTally['GKセーブ']+st.shotTally['DFブロック'];
+      return `<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px;">
+        <span style="color:var(--pitch);">${r.matchName || r.opponent || '(未入力)'}</span>
+        <span style="color:var(--muted);">${playtimeLabel(r)} ・ 🎯${shots} ⚽${st.shotTally['ゴール']}</span>
+      </div>`;
+    }).join('');
+
+    return `<div style="background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px;">
+      <div style="font-family:'Oswald',sans-serif; font-size:18px; font-weight:600; margin-bottom:4px;">${date}</div>
+      <div style="font-size:12px; color:var(--muted); margin-bottom:10px;">${matchCount}本 ・ 出場合計 ${totalPlayMin}分 ・ 🎯${totalShots} ⚽${totalGoals}</div>
+      ${matchRows}
+    </div>`;
+  }).join('');
+}
 
 /* ===================== 画面切替 ===================== */
 function showScreen(id){
